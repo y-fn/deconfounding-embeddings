@@ -33,7 +33,7 @@ def is_top_k_match(embeddings_0, embeddings_1, k=3):
 
     return top_k_matches
 
-def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, top_k=3): 
+def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, top_k=3, save_path=''): 
     # Load the sentence embedding model
     if embedding == 'mpnet':
         model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
@@ -83,7 +83,7 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, to
 
     # Save the plot
     plt.tight_layout()
-    plt.savefig('kmeans_before_erasure.png')
+    plt.savefig(f'{save_path}kmeans_before_erasure.png')
     plt.close()
 
     ### Run k-means clustering - after erasure
@@ -115,7 +115,7 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, to
 
     # Save the plot
     plt.tight_layout()
-    plt.savefig('kmeans_after_erasure.png')
+    plt.savefig(f'{save_path}kmeans_after_erasure.png')
     plt.close()
 
     ### Perform PCA - before erasure
@@ -136,7 +136,7 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, to
     
     # Save the plot
     plt.tight_layout()
-    plt.savefig('pca_before_erasure.png')
+    plt.savefig(f'{save_path}pca_before_erasure.png')
     plt.close()
 
     ### Perform PCA - after erasure
@@ -157,7 +157,7 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, to
     
     # Save the plot
     plt.tight_layout()
-    plt.savefig('pca_after_erasure.png')
+    plt.savefig(f'{save_path}pca_after_erasure.png')
     plt.close()
 
     ### Generate top k rankings
@@ -196,5 +196,5 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, to
 
     # Save the plot
     plt.tight_layout()
-    plt.savefig('top_k_retrieval.png')
+    plt.savefig(f'{save_path}top_k_retrieval.png')
     plt.close()
