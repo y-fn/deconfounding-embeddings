@@ -10,7 +10,7 @@ from concept_erasure import LeaceEraser
 def is_top_k_match(embeddings_0, embeddings_1, k=3):
     
     # Combine both lists into a single array
-    all_embeddings = np.concatenate((embeddings_0, embeddings_1), axis=0)  # shape (512, embedding_size)
+    all_embeddings = np.concatenate((embeddings_0, embeddings_1), axis=0) 
     num_cases = len(embeddings_0)
     top_k_matches = []
 
