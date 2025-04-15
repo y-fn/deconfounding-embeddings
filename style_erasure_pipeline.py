@@ -57,6 +57,7 @@ def get_exact_pairs(X, k, text_list_1):
     return total_pairs
 
 def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, top_k_retrieval=3, max_n_clusters=8): 
+    
     # Load the sentence embedding model
     if embedding == 'mpnet':
         model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
@@ -77,6 +78,7 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, to
     embeddings_erased = eraser(embeddings)
 
     ### Run k-means clustering - before erasure
+    
     kmeans = KMeans(n_clusters=k, random_state=42)
     kmeans_labels = kmeans.fit_predict(embeddings.numpy())
 
@@ -110,6 +112,7 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, to
     plt.close()
 
     ### Run k-means clustering - after erasure
+    
     kmeans = KMeans(n_clusters=k, random_state=42)
     kmeans_labels = kmeans.fit_predict(embeddings_erased.numpy())
 
@@ -142,6 +145,7 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, to
     plt.close()
 
     ### Perform PCA - before erasure
+    
     pca = PCA(n_components=2)
     pca_result = pca.fit_transform(embeddings)
 
@@ -152,7 +156,7 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, to
     # Plot
     plt.figure(figsize=(10, 6))
     plt.scatter(source_1_pca[:, 0], source_1_pca[:, 1], color='midnightblue', label='Source 1', alpha=0.7, s=15)  # Smaller points
-    plt.scatter(source_2_pca[:, 0], source_2_pca[:, 1], color='darkorange', label='Wiki', alpha=0.7, s=15)  # Smaller points
+    plt.scatter(source_2_pca[:, 0], source_2_pca[:, 1], color='darkorange', label='Source 2', alpha=0.7, s=15)  # Smaller points
     plt.title('PCA of Embeddings Before Erasure', fontsize=20)
     plt.legend()
     plt.grid(True)
@@ -163,6 +167,7 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, to
     plt.close()
 
     ### Perform PCA - after erasure
+    
     pca = PCA(n_components=2)
     pca_result = pca.fit_transform(embeddings_erased)
 
