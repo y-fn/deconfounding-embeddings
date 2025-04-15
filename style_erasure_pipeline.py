@@ -56,7 +56,7 @@ def get_exact_pairs(X, k, text_list_1):
 
     return total_pairs
 
-def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, top_k_retrieval=3, max_n_clusters=8): 
+def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, top_k_retrieval=3, max_n_clusters=32): 
     
     # Load the sentence embedding model
     if embedding == 'mpnet':
@@ -179,7 +179,7 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, to
     plt.figure(figsize=(10, 6))
     plt.scatter(source_1_pca[:, 0], source_1_pca[:, 1], color='midnightblue', label='Source 1', alpha=0.7, s=15)  # Smaller points
     plt.scatter(source_2_pca[:, 0], source_2_pca[:, 1], color='darkorange', label='Source 2', alpha=0.7, s=15)  # Smaller points
-    plt.title('PCA of Embeddings Before Erasure', fontsize=20)
+    plt.title('PCA of Embeddings After Erasure', fontsize=20)
     plt.legend()
     plt.grid(True)
     
