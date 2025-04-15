@@ -4,13 +4,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.cluster import KMeans
 from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
 from concept_erasure import LeaceEraser
 
 def is_top_k_match(embeddings_0, embeddings_1, k=3):
     
     # Combine both lists into a single array
-    all_embeddings = np.concatenate((embeddings_0, embeddings_1), axis=0) 
+    all_embeddings = np.concatenate((embeddings_0, embeddings_1), axis=0)  # shape (512, embedding_size)
     num_cases = len(embeddings_0)
     top_k_matches = []
 
@@ -33,7 +32,31 @@ def is_top_k_match(embeddings_0, embeddings_1, k=3):
 
     return top_k_matches
 
-def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, top_k=3, save_path=''): 
+def get_exact_pairs(X, k, text_list_1):
+
+    kmeans = KMeans(n_clusters=k, random_state=42)
+    clusters = kmeans.fit_predict(X)
+
+    # Determine cluster labels for source_1 and source_2 embeddings
+    labels_1 = clusters[:len(text_list_1)]
+    labels_2 = clusters[len(text_list_1):]
+
+    # Count exact matches (source_1, source_2 pairs) in each cluster
+    matches_per_cluster = Counter()
+
+    for i, label_1 in enumerate(labels_1):
+        # Check if the corresponding embedding_2 has the same cluster label
+        if label_1 == labels_2[i]:
+            matches_per_cluster[label_1] += 1
+
+    # Print the number of matches per cluster
+    total_pairs = 0
+    for cluster_id in range(k):
+        total_pairs += matches_per_cluster[cluster_id]
+
+    return total_pairs
+
+def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, top_k_retrieval=3, max_n_clusters=8): 
     # Load the sentence embedding model
     if embedding == 'mpnet':
         model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
@@ -83,7 +106,7 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, to
 
     # Save the plot
     plt.tight_layout()
-    plt.savefig(f'{save_path}kmeans_before_erasure.png')
+    plt.savefig('kmeans_before_erasure.png')
     plt.close()
 
     ### Run k-means clustering - after erasure
@@ -115,7 +138,7 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, to
 
     # Save the plot
     plt.tight_layout()
-    plt.savefig(f'{save_path}kmeans_after_erasure.png')
+    plt.savefig('kmeans_after_erasure.png')
     plt.close()
 
     ### Perform PCA - before erasure
@@ -136,7 +159,7 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, to
     
     # Save the plot
     plt.tight_layout()
-    plt.savefig(f'{save_path}pca_before_erasure.png')
+    plt.savefig('pca_before_erasure.png')
     plt.close()
 
     ### Perform PCA - after erasure
@@ -157,7 +180,7 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, to
     
     # Save the plot
     plt.tight_layout()
-    plt.savefig(f'{save_path}pca_after_erasure.png')
+    plt.savefig('pca_after_erasure.png')
     plt.close()
 
     ### Generate top k rankings
@@ -169,7 +192,7 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, to
     embeddings_erased_2 = embeddings_erased[len(text_list_1):]
     
     ret_list, ret_list_erased = [], []
-    for tk in range(top_k, 0, -1):
+    for tk in range(top_k_retrieval, 0, -1):
 
         top_k_results = is_top_k_match(embeddings_1, embeddings_2, k=tk)
         prc = sum(top_k_results) / len(top_k_results)
@@ -196,5 +219,39 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, to
 
     # Save the plot
     plt.tight_layout()
-    plt.savefig(f'{save_path}top_k_retrieval.png')
+    plt.savefig('top_k_retrieval.png')
+    plt.close()
+
+    ### Get exact pairs
+
+    total_pairs, total_pairs_erased = [], []
+
+    k_list = list(range(2, max_n_clusters))
+
+    for kr in k_list:
+        total_pairs.append(get_exact_pairs(embeddings, kr, text_list_1))
+        total_pairs_erased.append(get_exact_pairs(embeddings_erased, kr, text_list_1))
+
+
+    ln = len(embeddings_1)
+    total_pairs_prc = [i / ln for i in total_pairs][:127]
+    total_pairs_erased_prc = [i / ln for i in total_pairs_erased][:127]
+
+    # Create the plot
+    plt.figure(figsize=(10.5, 6))
+    plt.plot(k_list, total_pairs_prc, marker='.', label='Before Erasure', color='midnightblue')
+    plt.plot(k_list, total_pairs_erased_prc, marker='.', label='After Erasure', color='darkorange')
+
+    # Add labels, title, and legend
+    plt.xlabel('# of Clusters', fontsize=14)
+    plt.ylabel('Percentage of Exact Pairs', fontsize=14)
+    plt.title('Percentage of Exact Pairs Before and After Erasure', fontsize=20)
+    plt.legend(fontsize=12)
+
+    # Add grid for better readability
+    plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+
+    # Show the plot
+    plt.tight_layout()
+    plt.savefig('exact_pairs.png')
     plt.close()
