@@ -56,11 +56,26 @@ def get_exact_pairs(X, k, text_list_1):
 
     return total_pairs
 
+def load_embedding_model(embedding, trust_remote_code=True) -> SentenceTransformer:
+    model_map = {
+        'mpnet': 'sentence-transformers/all-mpnet-base-v2',
+        'jina': 'jinaai/jina-embeddings-v3',
+        'gist': 'avsolatorio/GIST-small-Embedding-v0',
+        'nv': 'nvidia/NV-Embed-v2',
+        'mini': 'sentence-transformers/all-MiniLM-L6-v2'
+    }
+
+    if embedding not in model_map:
+        raise ValueError(f"Unknown embedding type: '{embedding}'")
+
+    model_name = model_map[embedding]
+    model = SentenceTransformer(model_name, trust_remote_code=trust_remote_code)
+    return model
+
 def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, top_k_retrieval=3, max_n_clusters=32): 
     
     # Load the sentence embedding model
-    if embedding == 'mpnet':
-        model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
+    model = load_embedding_model(embedding)
 
     # Combine texts and label them
     text_list = text_list_1 + text_list_2
