@@ -62,7 +62,8 @@ def load_embedding_model(embedding, trust_remote_code=True) -> SentenceTransform
         'jina': 'jinaai/jina-embeddings-v3',
         'gist': 'avsolatorio/GIST-small-Embedding-v0',
         'nv': 'nvidia/NV-Embed-v2',
-        'mini': 'sentence-transformers/all-MiniLM-L6-v2'
+        'mini': 'sentence-transformers/all-MiniLM-L6-v2', 
+        'e5': 'intfloat/multilingual-e5-large-instruct',
     }
 
     if embedding not in model_map:
