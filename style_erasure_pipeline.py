@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from collections import Counter
 from sklearn.cluster import KMeans
 from sentence_transformers import SentenceTransformer
 from concept_erasure import LeaceEraser
