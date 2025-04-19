@@ -1,7 +1,9 @@
 import torch
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import re
 from collections import Counter
 from sklearn.cluster import KMeans
 from sentence_transformers import SentenceTransformer
