@@ -5,6 +5,8 @@ import seaborn as sns
 from sklearn.cluster import KMeans
 from sentence_transformers import SentenceTransformer
 from concept_erasure import LeaceEraser
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.decomposition import PCA
 
 def is_top_k_match(embeddings_0, embeddings_1, k=3):
     
@@ -73,7 +75,7 @@ def load_embedding_model(embedding, trust_remote_code=True) -> SentenceTransform
     model = SentenceTransformer(model_name, trust_remote_code=trust_remote_code)
     return model
 
-def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, top_k_retrieval=3, max_n_clusters=32): 
+def run_erasure_two_sources(text_list_1, text_list_2, embedding='mini', k=5, top_k_retrieval=20, max_n_clusters=32): 
     
     # Load the sentence embedding model
     model = load_embedding_model(embedding)
@@ -253,10 +255,142 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mpnet', k=5, to
         total_pairs.append(get_exact_pairs(embeddings, kr, text_list_1))
         total_pairs_erased.append(get_exact_pairs(embeddings_erased, kr, text_list_1))
 
-
     ln = len(embeddings_1)
-    total_pairs_prc = [i / ln for i in total_pairs][:127]
-    total_pairs_erased_prc = [i / ln for i in total_pairs_erased][:127]
+    total_pairs_prc = [i / ln for i in total_pairs][:max_n_clusters-1]
+    total_pairs_erased_prc = [i / ln for i in total_pairs_erased][:max_n_clusters-1]
+
+    # Create the plot
+    plt.figure(figsize=(10.5, 6))
+    plt.plot(k_list, total_pairs_prc, marker='.', label='Before Erasure', color='midnightblue')
+    plt.plot(k_list, total_pairs_erased_prc, marker='.', label='After Erasure', color='darkorange')
+
+    # Add labels, title, and legend
+    plt.xlabel('# of Clusters', fontsize=14)
+    plt.ylabel('Percentage of Exact Pairs', fontsize=14)
+    plt.title('Percentage of Exact Pairs Before and After Erasure', fontsize=20)
+    plt.legend(fontsize=12)
+
+    # Add grid for better readability
+    plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+
+    # Show the plot
+    plt.tight_layout()
+    plt.savefig('exact_pairs.png')
+    plt.close()
+
+def run_erasure_two_sources_no_label(text_list_1, text_list_2, erase_all=True, embedding='mini', top_k_retrieval=20, max_n_clusters=32): 
+    
+    # Load the sentence embedding model
+    model = load_embedding_model(embedding)
+
+    df = pd.DataFrame({
+        'text1': text_list_1,
+        'text2': text_list_2,
+        })
+
+    # Get embeddings for both text columns
+    embeddings_text1 = model.encode(df['text1'].tolist(), convert_to_numpy=True)
+    embeddings_text2 = model.encode(df['text2'].tolist(), convert_to_numpy=True)
+
+    # Combine all embeddings for clustering
+    all_embeddings = np.vstack((embeddings_text1, embeddings_text2))
+
+    # Run KMeans clustering
+    km = 2
+    kmeans = KMeans(n_clusters=km, random_state=42)
+    cluster_labels = kmeans.fit_predict(all_embeddings)
+
+    # Assign clusters back to original dataframe
+    df['cluster_text1'] = cluster_labels[:len(df)]
+    df['cluster_text2'] = cluster_labels[len(df):]
+
+    # Count non-exact pairs
+    df['not_exact_pair'] = df['cluster_text1'] != df['cluster_text2']
+
+    df_ne = df[df['not_exact_pair']]
+    df_ep = df[df['not_exact_pair'] == False]
+    embeddings_text1_ep = embeddings_text1[df['not_exact_pair'] == False]
+    embeddings_text2_ep = embeddings_text2[df['not_exact_pair'] == False]
+
+    # Combine texts and label them
+    text_list_1_erasure = df_ne['text1'].to_list()
+    text_list_2_erasure = df_ne['text2'].to_list()
+    text_list_erasure = text_list_1_erasure + text_list_2_erasure
+    labels_erasure = df_ne['cluster_text1'].to_list() + df_ne['cluster_text2'].to_list()
+
+    text_list_1 = df['text1'].to_list()
+    text_list_2 = df['text2'].to_list()
+    text_list = text_list_1 + text_list_2
+    labels = ['source_1'] * len(text_list_1) + ['source_2'] * len(text_list_2)
+
+    # Compute embeddings
+    embeddings_erasure = model.encode(text_list_erasure)
+    embeddings_erasure = torch.from_numpy(embeddings_erasure)
+    embeddings = torch.from_numpy(all_embeddings)
+
+    # Convert string labels to numeric
+    numeric_labels_erasure = torch.tensor(labels_erasure)
+
+    # Run LEACE erasure
+    eraser = LeaceEraser.fit(embeddings_erasure, numeric_labels_erasure)
+    if erase_all:
+        embeddings_erased = eraser(embeddings)
+        embeddings_erased_1 = embeddings_erased[:len(text_list_1)]
+        embeddings_erased_2 = embeddings_erased[len(text_list_1):]
+    else:
+        embeddings_erased = eraser(embeddings_erasure)
+        embeddings_erased_1 = embeddings_erased[:len(text_list_1_erasure)]
+        embeddings_erased_2 = embeddings_erased[len(text_list_1_erasure):]
+        embeddings_erased_1 = np.vstack((embeddings_text1_ep, embeddings_erased_1))
+        embeddings_erased_2 = np.vstack((embeddings_text2_ep, embeddings_erased_2))
+        embeddings_erased = np.vstack((embeddings_erased_1, embeddings_erased_2))
+
+    ### Generate top k rankings
+
+    ret_list, ret_list_erased = [], []
+    for tk in range(top_k_retrieval, 0, -1):
+
+        top_k_results = is_top_k_match(embeddings_text1, embeddings_text2, k=tk)
+        prc = sum(top_k_results) / len(top_k_results)
+        ret_list.append(prc)
+
+        top_k_results = is_top_k_match(embeddings_erased_1, embeddings_erased_2, k=tk)
+        prc = sum(top_k_results) / len(top_k_results)
+        ret_list_erased.append(prc)
+
+    # X-axis labels
+    x_labels = [f"{i+1}" for i in range(len(ret_list))[::-1]]
+
+    # Plot each list
+    plt.figure(figsize=(10.5, 6))
+    plt.plot(x_labels, ret_list, marker='o', color='midnightblue', linestyle='-', label='Before')
+    plt.plot(x_labels, ret_list_erased, marker='^', color='darkorange', linestyle='-', label='After')
+
+    # Adding labels and legend
+    plt.title('Retrieval Before vs. After LEACE', fontsize=20)
+    plt.ylabel('Percentage', fontsize=12)
+    plt.xlabel('Top k', fontsize=12)
+    plt.legend()
+    plt.grid(True, which='both', linestyle='--', linewidth=0.5) # Add grid for better readability
+
+    # Save the plot
+    plt.tight_layout()
+    plt.savefig('top_k_retrieval.png')
+    plt.close()
+
+    ### Get exact pairs
+
+    total_pairs, total_pairs_erased = [], []
+
+    k_list = list(range(2, max_n_clusters))
+
+    for kr in k_list:
+        total_pairs.append(get_exact_pairs(all_embeddings, kr, text_list_1))
+        total_pairs_erased.append(get_exact_pairs(embeddings_erased, kr, text_list_1))
+
+    ln = len(embeddings_text1)
+    total_pairs_prc = [i / ln for i in total_pairs][:max_n_clusters-1]
+    total_pairs_erased_prc = [i / ln for i in total_pairs_erased][:max_n_clusters-1]
 
     # Create the plot
     plt.figure(figsize=(10.5, 6))
