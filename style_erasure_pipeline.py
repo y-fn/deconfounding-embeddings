@@ -68,7 +68,9 @@ def load_embedding_model(embedding, trust_remote_code=True) -> SentenceTransform
         'gist': 'avsolatorio/GIST-small-Embedding-v0',
         'nv': 'nvidia/NV-Embed-v2',
         'mini': 'sentence-transformers/all-MiniLM-L6-v2', 
-        'e5': 'intfloat/multilingual-e5-large-instruct',
+        'e5-instruct': 'intfloat/multilingual-e5-large-instruct',
+        'e5-large': 'intfloat/multilingual-e5-large',
+        'e5-small': 'intfloat/multilingual-e5-small',
     }
 
     if embedding not in model_map:
@@ -88,7 +90,7 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mini', k=5, top
     labels = ['source_1'] * len(text_list_1) + ['source_2'] * len(text_list_2)
 
     # Compute embeddings
-    embeddings = model.encode(text_list)
+    embeddings = model.encode(text_list, show_progress_bar=True)
     embeddings = torch.from_numpy(embeddings)
 
     # Convert string labels to numeric
@@ -292,8 +294,8 @@ def run_erasure_two_sources_no_label(text_list_1, text_list_2, erase_all=True, e
         })
 
     # Get embeddings for both text columns
-    embeddings_text1 = model.encode(df['text1'].tolist(), convert_to_numpy=True)
-    embeddings_text2 = model.encode(df['text2'].tolist(), convert_to_numpy=True)
+    embeddings_text1 = model.encode(df['text1'].tolist(), convert_to_numpy=True, show_progress_bar=True)
+    embeddings_text2 = model.encode(df['text2'].tolist(), convert_to_numpy=True, show_progress_bar=True)
 
     # Combine all embeddings for clustering
     all_embeddings = np.vstack((embeddings_text1, embeddings_text2))
@@ -327,7 +329,7 @@ def run_erasure_two_sources_no_label(text_list_1, text_list_2, erase_all=True, e
     labels = ['source_1'] * len(text_list_1) + ['source_2'] * len(text_list_2)
 
     # Compute embeddings
-    embeddings_erasure = model.encode(text_list_erasure)
+    embeddings_erasure = model.encode(text_list_erasure, show_progress_bar=True)
     embeddings_erasure = torch.from_numpy(embeddings_erasure)
     embeddings = torch.from_numpy(all_embeddings)
 
