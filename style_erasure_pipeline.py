@@ -71,6 +71,7 @@ def load_embedding_model(embedding, trust_remote_code=True) -> SentenceTransform
         'e5-instruct': 'intfloat/multilingual-e5-large-instruct',
         'e5-large': 'intfloat/multilingual-e5-large',
         'e5-small': 'intfloat/multilingual-e5-small',
+        'msd': 'StyleDistance/mstyledistance',  
     }
 
     if embedding not in model_map:
