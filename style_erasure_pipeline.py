@@ -71,7 +71,6 @@ def load_embedding_model(embedding, trust_remote_code=True) -> SentenceTransform
         'e5-instruct': 'intfloat/multilingual-e5-large-instruct',
         'e5-large': 'intfloat/multilingual-e5-large',
         'e5-small': 'intfloat/multilingual-e5-small',
-        'msd': 'StyleDistance/mstyledistance',  
     }
 
     if embedding not in model_map:
@@ -80,6 +79,14 @@ def load_embedding_model(embedding, trust_remote_code=True) -> SentenceTransform
     model_name = model_map[embedding]
     model = SentenceTransformer(model_name, trust_remote_code=trust_remote_code)
     return model
+
+def cluster_embeddings(embeddings, num_clusters):
+
+    embeddings_np = embeddings.cpu().numpy()
+    kmeans = KMeans(n_clusters=num_clusters, random_state=42, n_init='auto')
+    cluster_labels = kmeans.fit_predict(embeddings_np)
+
+    return cluster_labels
 
 def run_erasure_two_sources(text_list_1, text_list_2, embedding='mini', k=5, top_k_retrieval=20, max_n_clusters=32): 
     
@@ -282,6 +289,276 @@ def run_erasure_two_sources(text_list_1, text_list_2, embedding='mini', k=5, top
     # Show the plot
     plt.tight_layout()
     plt.savefig('exact_pairs.png')
+    plt.close()
+
+def run_erasure_two_sources_partial_pairs(
+    text_list_1,
+    text_list_2,
+    k=5,
+    embedding='mini',
+    n_pairs=1024,
+    top_k_retrieval=20,
+    max_n_clusters=32,
+):
+    # Load the sentence embedding model
+    model = load_embedding_model(embedding)
+
+    # Combine texts and label them
+    text_list = text_list_1 + text_list_2
+    labels = ['source_1'] * len(text_list_1) + ['source_2'] * len(text_list_2)
+
+    # Compute embeddings for all texts
+    embeddings = model.encode(text_list, show_progress_bar=True)
+    embeddings = torch.from_numpy(embeddings)
+
+    # Convert string labels to numeric
+    numeric_labels = torch.tensor([0 if label == 'source_1' else 1 for label in labels])
+
+    # Run LEACE erasure using all embeddings
+    eraser = LeaceEraser.fit(embeddings, numeric_labels)
+    embeddings_erased = eraser(embeddings)
+
+    ###############################################
+    ### Run k-means clustering - before erasure ###
+    ###############################################
+    
+    kmeans = KMeans(n_clusters=k, random_state=42)
+    kmeans_labels = kmeans.fit_predict(embeddings.numpy())
+
+    # Count the density distribution for each source in each cluster
+    cluster_counts = {cluster: [0, 0] for cluster in range(k)}
+    for label, source in zip(kmeans_labels, numeric_labels):
+        cluster_counts[label][source.item()] += 1
+
+    source_1_counts = [cluster_counts[i][0] for i in range(k)]
+    source_2_counts = [cluster_counts[i][1] for i in range(k)]
+
+    # Plotting 
+    sns.set_style("whitegrid")
+    x = np.arange(k)
+    width = 0.35
+
+    fig, ax = plt.subplots(figsize=(10.5, 6))
+    bar1 = ax.bar(x - width/2, source_1_counts, width, label='Source 1', color='midnightblue')
+    bar2 = ax.bar(x + width/2, source_2_counts, width, label='Source 2', color='darkorange')
+
+    ax.set_xlabel('Clusters')
+    ax.set_ylabel('Density Count')
+    ax.set_title('Cluster Density Distribution by Source Before Erasure', fontsize=20)
+    ax.set_xticks(x)
+    ax.set_xticklabels([f'{i}' for i in range(k)], rotation=45)
+    ax.legend()
+
+    # Save the plot
+    plt.tight_layout()
+    plt.savefig('kmeans_before_erasure.png')
+    plt.close()
+
+    ##############################################
+    ### Run k-means clustering - after erasure ###
+    ##############################################
+    
+    kmeans = KMeans(n_clusters=k, random_state=42)
+    kmeans_labels = kmeans.fit_predict(embeddings_erased.numpy())
+
+    # Count the density distribution for each source in each cluster
+    cluster_counts = {cluster: [0, 0] for cluster in range(k)}
+    for label, source in zip(kmeans_labels, numeric_labels):
+        cluster_counts[label][source.item()] += 1
+
+    source_1_counts = [cluster_counts[i][0] for i in range(k)]
+    source_2_counts = [cluster_counts[i][1] for i in range(k)]
+
+    # Plotting
+    x = np.arange(k)
+    width = 0.35
+
+    fig, ax = plt.subplots(figsize=(10.5, 6))
+    bar1 = ax.bar(x - width/2, source_1_counts, width, label='Source 1', color='midnightblue')
+    bar2 = ax.bar(x + width/2, source_2_counts, width, label='Source 2', color='darkorange')
+
+    ax.set_xlabel('Clusters')
+    ax.set_ylabel('Density Count')
+    ax.set_title('Cluster Density Distribution by Source After Erasure', fontsize=20)
+    ax.set_xticks(x)
+    ax.set_xticklabels([f'{i}' for i in range(k)], rotation=45)
+    ax.legend()
+
+    # Save the plot
+    plt.tight_layout()
+    plt.savefig('kmeans_after_erasure.png')
+    plt.close()
+
+    ####################################
+    ### Perform PCA - before erasure ###
+    ####################################
+    
+    pca = PCA(n_components=2)
+    pca_result = pca.fit_transform(embeddings)
+
+    # Separate PCA results by source
+    source_1_pca = pca_result[:len(text_list_1)]
+    source_2_pca = pca_result[len(text_list_1):]
+
+    # Plot
+    plt.figure(figsize=(10, 6))
+    plt.scatter(source_1_pca[:, 0], source_1_pca[:, 1], color='midnightblue', label='Source 1', alpha=0.7, s=15)  # Smaller points
+    plt.scatter(source_2_pca[:, 0], source_2_pca[:, 1], color='darkorange', label='Source 2', alpha=0.7, s=15)  # Smaller points
+    plt.title('PCA of Embeddings Before Erasure', fontsize=20)
+    plt.legend()
+    plt.grid(True)
+    
+    # Save the plot
+    plt.tight_layout()
+    plt.savefig('pca_before_erasure.png')
+    plt.close()
+
+    ###################################
+    ### Perform PCA - after erasure ###
+    ###################################
+    
+    pca = PCA(n_components=2)
+    pca_result = pca.fit_transform(embeddings_erased)
+
+    # Separate PCA results by source
+    source_1_pca = pca_result[:len(text_list_1)]
+    source_2_pca = pca_result[len(text_list_1):]
+
+    # Plot
+    plt.figure(figsize=(10, 6))
+    plt.scatter(source_1_pca[:, 0], source_1_pca[:, 1], color='midnightblue', label='Source 1', alpha=0.7, s=15)  # Smaller points
+    plt.scatter(source_2_pca[:, 0], source_2_pca[:, 1], color='darkorange', label='Source 2', alpha=0.7, s=15)  # Smaller points
+    plt.title('PCA of Embeddings After Erasure', fontsize=20)
+    plt.legend()
+    plt.grid(True)
+    
+    # Save the plot
+    plt.tight_layout()
+    plt.savefig('pca_after_erasure.png')
+    plt.close()
+
+    ###########################
+    ### Get Top-K Retrieval ###
+    ###########################
+
+    ret_list_before, ret_list_after = [], []
+
+    for tk in range(top_k_retrieval, 0, -1):
+
+        # Before erasure retrieval
+        correct_before = 0
+        for idx in range(n_pairs):
+            query_emb = embeddings[idx]  # query from text_list_1
+            # Create pool embeddings from both lists excluding the query itself
+            pool_embs = torch.cat([embeddings[:idx], embeddings[idx+1:]])
+
+            distances = torch.norm(pool_embs - query_emb, dim=1)
+            topk_indices = torch.topk(distances, tk, largest=False).indices
+
+            # Check if the original paired index is within top_k
+            # Adjust index as the query is removed from embeddings
+            target_idx = len(text_list_1) - 1 + idx if idx < len(text_list_1) else idx - 1
+            if target_idx in topk_indices:
+                correct_before += 1
+
+        ret_list_before.append(correct_before / n_pairs)
+
+        # After erasure retrieval
+        correct_after = 0
+        for idx in range(n_pairs):
+            query_emb = embeddings_erased[idx]  # erased query from text_list_1
+            # Create pool embeddings from both erased lists excluding the query itself
+            pool_embs_erased = torch.cat([embeddings_erased[:idx], embeddings_erased[idx+1:]])
+
+            distances = torch.norm(pool_embs_erased - query_emb, dim=1)
+            topk_indices = torch.topk(distances, tk, largest=False).indices
+
+            target_idx = len(text_list_1) - 1 + idx if idx < len(text_list_1) else idx - 1
+            if target_idx in topk_indices:
+                correct_after += 1
+
+        ret_list_after.append(correct_after / n_pairs)
+
+    # X-axis labels
+    x_labels = [f"{i+1}" for i in range(len(ret_list_before))[::-1]]
+
+    # Plot each list
+    plt.figure(figsize=(10.5, 6))
+    plt.plot(x_labels, ret_list_before, marker='o', color='midnightblue', linestyle='-', label='Before')
+    plt.plot(x_labels, ret_list_after, marker='^', color='darkorange', linestyle='-', label='After')
+
+    # Adding labels and legend
+    plt.title('Retrieval Before vs. After LEACE', fontsize=20)
+    plt.ylabel('Percentage', fontsize=12)
+    plt.xlabel('Top k', fontsize=12)
+    plt.legend()
+    plt.grid(True, linestyle='--', linewidth=0.5)
+
+    # Save the plot
+    plt.tight_layout()
+    plt.savefig('top_k_retrieval.png')
+    plt.close()
+
+    #######################
+    ### Get Exact Pairs ###
+    #######################
+
+    # Extract embeddings after erasure
+    embeddings_erased_1 = embeddings_erased[:len(text_list_1)]
+    embeddings_erased_2 = embeddings_erased[len(text_list_1):]
+
+    # Calculate pairs only for the first n_pairs elements
+    embeddings_pairs_1 = embeddings_erased_1[:n_pairs]
+    embeddings_pairs_2 = embeddings_erased_2[:n_pairs]
+
+    # Combine embeddings into single pools for before and after erasure
+    combined_embeddings_original = embeddings
+    combined_embeddings_erased = embeddings_erased
+
+    total_exact_pairs_original = []
+    total_exact_pairs_erased = []
+    k_list = list(range(2, max_n_clusters))
+
+    for k_clusters in k_list:
+        # Cluster original embeddings
+        clusters_original = cluster_embeddings(combined_embeddings_original, k_clusters)
+
+        # Cluster erased embeddings
+        clusters_erased = cluster_embeddings(combined_embeddings_erased, k_clusters)
+
+        # Count how many pairs occur in the same cluster BEFORE erasure
+        exact_pairs_original_count = sum(
+            clusters_original[i] == clusters_original[len(text_list_1) + i] for i in range(n_pairs)
+        )
+        total_exact_pairs_original.append(exact_pairs_original_count)
+
+        # Count how many pairs occur in the same cluster AFTER erasure
+        exact_pairs_erased_count = sum(
+            clusters_erased[i] == clusters_erased[len(text_list_1) + i] for i in range(n_pairs)
+        )
+        total_exact_pairs_erased.append(exact_pairs_erased_count)
+
+    # Calculate percentages of exact pairs
+    total_pairs_original_prc = [count / n_pairs for count in total_exact_pairs_original]
+    total_pairs_erased_prc = [count / n_pairs for count in total_exact_pairs_erased]
+
+    # Plot results
+    plt.figure(figsize=(10.5, 6))
+    plt.plot(k_list, total_pairs_original_prc, marker='o', label='Before Erasure', color='midnightblue')
+    plt.plot(k_list, total_pairs_erased_prc, marker='.', label='After Erasure', color='darkorange')
+
+    # Add labels, title, and legend
+    plt.xlabel('# of Clusters', fontsize=14)
+    plt.ylabel('Percentage of Exact Pairs', fontsize=14)
+    plt.title('Percentage of Exact Pairs Before and After Erasure', fontsize=20)
+    plt.legend(fontsize=12)
+
+    # Add grid for readability
+    plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+
+    # Save plot
+    plt.tight_layout()
+    plt.savefig('exact_pairs_partial_comparison.png')
     plt.close()
 
 def run_erasure_two_sources_no_label(text_list_1, text_list_2, erase_all=True, embedding='mini', top_k_retrieval=20, max_n_clusters=32): 
