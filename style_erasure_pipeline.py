@@ -558,7 +558,7 @@ def run_erasure_two_sources_partial_pairs(
 
     # Save plot
     plt.tight_layout()
-    plt.savefig('exact_pairs_partial_comparison.png')
+    plt.savefig('exact_pairs.png')
     plt.close()
 
 def run_erasure_two_sources_no_label(text_list_1, text_list_2, erase_all=True, embedding='mini', top_k_retrieval=20, max_n_clusters=32): 
