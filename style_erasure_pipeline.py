@@ -443,41 +443,59 @@ def run_erasure_two_sources_partial_pairs(
 
     ret_list_before, ret_list_after = [], []
 
+    # Define combined query indices (first n_pairs from each list)
+    query_indices = list(range(n_pairs)) + list(range(len(text_list_1), len(text_list_1) + n_pairs))
+
     for tk in range(top_k_retrieval, 0, -1):
 
         # Before erasure retrieval
         correct_before = 0
-        for idx in range(n_pairs):
-            query_emb = embeddings[idx]  # query from text_list_1
-            # Create pool embeddings from both lists excluding the query itself
+        for idx in query_indices:
+            query_emb = embeddings[idx]
+
+            # Create pool embeddings excluding the query itself
             pool_embs = torch.cat([embeddings[:idx], embeddings[idx+1:]])
 
             distances = torch.norm(pool_embs - query_emb, dim=1)
             topk_indices = torch.topk(distances, tk, largest=False).indices
 
-            # Check if the original paired index is within top_k
-            # Adjust index as the query is removed from embeddings
-            target_idx = len(text_list_1) - 1 + idx if idx < len(text_list_1) else idx - 1
-            if target_idx in topk_indices:
+            # Determine the paired target index
+            if idx < len(text_list_1):
+                target_idx = len(text_list_1) + idx  # paired from list 2
+            else:
+                target_idx = idx - len(text_list_1)  # paired from list 1
+
+            # Adjust target index due to query removal from embeddings
+            target_idx_adjusted = target_idx - 1 if target_idx > idx else target_idx
+
+            if target_idx_adjusted in topk_indices:
                 correct_before += 1
 
-        ret_list_before.append(correct_before / n_pairs)
+        ret_list_before.append(correct_before / len(query_indices))
 
         # After erasure retrieval
         correct_after = 0
-        for idx in range(n_pairs):
-            query_emb = embeddings_erased[idx]  # erased query from text_list_1
-            # Create pool embeddings from both erased lists excluding the query itself
+        for idx in query_indices:
+            query_emb = embeddings_erased[idx]
+
+            # Create pool embeddings excluding the query itself
             pool_embs_erased = torch.cat([embeddings_erased[:idx], embeddings_erased[idx+1:]])
 
             distances = torch.norm(pool_embs_erased - query_emb, dim=1)
             topk_indices = torch.topk(distances, tk, largest=False).indices
 
-            target_idx = len(text_list_1) - 1 + idx if idx < len(text_list_1) else idx - 1
-            if target_idx in topk_indices:
+            # Determine paired target index
+            if idx < len(text_list_1):
+                target_idx = len(text_list_1) + idx
+            else:
+                target_idx = idx - len(text_list_1)
+
+            target_idx_adjusted = target_idx - 1 if target_idx > idx else target_idx
+
+            if target_idx_adjusted in topk_indices:
                 correct_after += 1
 
-        ret_list_after.append(correct_after / n_pairs)
+        ret_list_after.append(correct_after / len(query_indices))
 
     # X-axis labels
     x_labels = [f"{i+1}" for i in range(len(ret_list_before))[::-1]]
