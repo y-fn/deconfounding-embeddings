@@ -600,7 +600,7 @@ def run_erasure_two_sources_partial_pairs(
     plt.savefig('exact_pairs.png')
     plt.close()
 
-def run_erasure_two_sources_partial_pairs_asymetric(
+def run_erasure_two_sources_partial_pairs_asymmetric(
     text_list_1,
     text_list_2,
     k=5,
@@ -608,20 +608,22 @@ def run_erasure_two_sources_partial_pairs_asymetric(
     n_pairs=1024,
     top_k_retrieval=20,
     max_n_clusters=32,
+    source_1='Source 1', 
+    source_2='Source 2', 
 ):
     # Load the sentence embedding model
     model = load_embedding_model(embedding)
 
     # Combine texts and label them
     text_list = text_list_1 + text_list_2
-    labels = ['source_1'] * len(text_list_1) + ['source_2'] * len(text_list_2)
+    labels = [source_1] * len(text_list_1) + [source_2] * len(text_list_2)
 
     # Compute embeddings for all texts
     embeddings = model.encode(text_list, show_progress_bar=True)
     embeddings = torch.from_numpy(embeddings)
 
     # Convert string labels to numeric
-    numeric_labels = torch.tensor([0 if label == 'source_1' else 1 for label in labels])
+    numeric_labels = torch.tensor([0 if label == source_1 else 1 for label in labels])
 
     # Run LEACE erasure using all embeddings
     eraser = LeaceEraser.fit(embeddings, numeric_labels)
@@ -648,8 +650,8 @@ def run_erasure_two_sources_partial_pairs_asymetric(
     width = 0.35
 
     fig, ax = plt.subplots(figsize=(10.5, 6))
-    bar1 = ax.bar(x - width/2, source_1_counts, width, label='Source 1', color='midnightblue')
-    bar2 = ax.bar(x + width/2, source_2_counts, width, label='Source 2', color='darkorange')
+    bar1 = ax.bar(x - width/2, source_1_counts, width, label=source_1, color='midnightblue')
+    bar2 = ax.bar(x + width/2, source_2_counts, width, label=source_2, color='darkorange')
 
     ax.set_xlabel('Clusters')
     ax.set_ylabel('Density Count')
@@ -683,8 +685,8 @@ def run_erasure_two_sources_partial_pairs_asymetric(
     width = 0.35
 
     fig, ax = plt.subplots(figsize=(10.5, 6))
-    bar1 = ax.bar(x - width/2, source_1_counts, width, label='Source 1', color='midnightblue')
-    bar2 = ax.bar(x + width/2, source_2_counts, width, label='Source 2', color='darkorange')
+    bar1 = ax.bar(x - width/2, source_1_counts, width, label=source_1, color='midnightblue')
+    bar2 = ax.bar(x + width/2, source_2_counts, width, label=source_2, color='darkorange')
 
     ax.set_xlabel('Clusters')
     ax.set_ylabel('Density Count')
@@ -711,8 +713,8 @@ def run_erasure_two_sources_partial_pairs_asymetric(
 
     # Plot
     plt.figure(figsize=(10, 6))
-    plt.scatter(source_1_pca[:, 0], source_1_pca[:, 1], color='midnightblue', label='Source 1', alpha=0.7, s=15)  # Smaller points
-    plt.scatter(source_2_pca[:, 0], source_2_pca[:, 1], color='darkorange', label='Source 2', alpha=0.7, s=15)  # Smaller points
+    plt.scatter(source_1_pca[:, 0], source_1_pca[:, 1], color='midnightblue', label=source_1, alpha=0.7, s=15)  # Smaller points
+    plt.scatter(source_2_pca[:, 0], source_2_pca[:, 1], color='darkorange', label=source_2, alpha=0.7, s=15)  # Smaller points
     plt.title('PCA of Embeddings Before Erasure', fontsize=20)
     plt.legend()
     plt.grid(True)
@@ -735,8 +737,8 @@ def run_erasure_two_sources_partial_pairs_asymetric(
 
     # Plot
     plt.figure(figsize=(10, 6))
-    plt.scatter(source_1_pca[:, 0], source_1_pca[:, 1], color='midnightblue', label='Source 1', alpha=0.7, s=15)  # Smaller points
-    plt.scatter(source_2_pca[:, 0], source_2_pca[:, 1], color='darkorange', label='Source 2', alpha=0.7, s=15)  # Smaller points
+    plt.scatter(source_1_pca[:, 0], source_1_pca[:, 1], color='midnightblue', label=source_1, alpha=0.7, s=15)  # Smaller points
+    plt.scatter(source_2_pca[:, 0], source_2_pca[:, 1], color='darkorange', label=source_2, alpha=0.7, s=15)  # Smaller points
     plt.title('PCA of Embeddings After Erasure', fontsize=20)
     plt.legend()
     plt.grid(True)
