@@ -65,12 +65,19 @@ def load_embedding_model(embedding, trust_remote_code=True) -> SentenceTransform
     model_map = {
         'mpnet': 'sentence-transformers/all-mpnet-base-v2',
         'jina': 'jinaai/jina-embeddings-v3',
-        'gist': 'avsolatorio/GIST-small-Embedding-v0',
+        'gist-small': 'avsolatorio/GIST-small-Embedding-v0',
+        'gist-base': 'avsolatorio/GIST-Embedding-v0',
+        'gist-large': 'avsolatorio/GIST-large-Embedding-v0',
         'nv': 'nvidia/NV-Embed-v2',
         'mini': 'sentence-transformers/all-MiniLM-L6-v2', 
         'e5-instruct': 'intfloat/multilingual-e5-large-instruct',
         'e5-large': 'intfloat/multilingual-e5-large',
         'e5-small': 'intfloat/multilingual-e5-small',
+        'e5-base': 'intfloat/multilingual-e5-base',
+        'nomic-v2': 'nomic-ai/nomic-embed-text-v2-moe',
+        'nomic-v1.5': 'nomic-ai/nomic-embed-text-v1.5',
+        'mxb': 'mixedbread-ai/mxbai-embed-large-v1', 
+        'sf-v2': 'Snowflake/snowflake-arctic-embed-m-v2.0',
     }
 
     if embedding not in model_map:
@@ -871,6 +878,104 @@ def run_erasure_two_sources_partial_pairs_asymmetric(
     plt.tight_layout()
     plt.savefig('exact_pairs_partial_comparison.png')
     plt.close()
+
+def run_erasure_two_sources_partial_pairs_recall(
+    text_list_1,
+    text_list_2,
+    embedding='mini',
+    n_pairs=1024,
+    top_k_retrieval=[10, 1],
+    source_1='Source 1', 
+    source_2='Source 2', 
+):
+    # Load the sentence embedding model
+    model = load_embedding_model(embedding)
+
+    # Combine texts and label them
+    text_list = text_list_1 + text_list_2
+    labels = [source_1] * len(text_list_1) + [source_2] * len(text_list_2)
+
+    if embedding == 'nomic-v1.5': 
+        text_list = [f"search_document: {text}" for text in text_list]
+
+    # Compute embeddings for all texts
+    if embedding == 'jina':
+        embeddings = model.encode(text_list, show_progress_bar=True, task="text-matching")
+    elif embedding == 'nomic-v2':   
+        embeddings = model.encode(text_list, show_progress_bar=True, prompt_name="passage")
+    else:
+        embeddings = model.encode(text_list, show_progress_bar=True)
+
+    embeddings = torch.from_numpy(embeddings)
+
+    # Convert string labels to numeric
+    numeric_labels = torch.tensor([0 if label == source_1 else 1 for label in labels])
+
+    # Run LEACE erasure using all embeddings
+    eraser = LeaceEraser.fit(embeddings, numeric_labels)
+    embeddings_erased = eraser(embeddings)
+
+    #########################
+    ### Get Top-K Ranking ###
+    #########################
+
+    ret_list_before, ret_list_after = [], []
+
+    # Define combined query indices (first n_pairs from each list)
+    query_indices = list(range(n_pairs)) + list(range(len(text_list_1), len(text_list_1) + n_pairs))
+
+    for tk in top_k_retrieval:
+
+        # Before erasure retrieval
+        correct_before = 0
+        for idx in query_indices:
+            query_emb = embeddings[idx]
+
+            # Create pool embeddings excluding the query itself
+            pool_embs = torch.cat([embeddings[:idx], embeddings[idx+1:]])
+
+            distances = torch.norm(pool_embs - query_emb, dim=1)
+            topk_indices = torch.topk(distances, tk, largest=False).indices
+
+            # Determine the paired target index
+            if idx < len(text_list_1):
+                target_idx = len(text_list_1) + idx  # paired from list 2
+            else:
+                target_idx = idx - len(text_list_1)  # paired from list 1
+
+            # Adjust target index due to query removal from embeddings
+            target_idx_adjusted = target_idx - 1 if target_idx > idx else target_idx
+
+            if target_idx_adjusted in topk_indices:
+                correct_before += 1
+
+        ret_list_before.append(correct_before / len(query_indices))
+
+        # After erasure retrieval
+        correct_after = 0
+        for idx in query_indices:
+            query_emb = embeddings_erased[idx]
+
+            # Create pool embeddings excluding the query itself
+            pool_embs_erased = torch.cat([embeddings_erased[:idx], embeddings_erased[idx+1:]])
+
+            distances = torch.norm(pool_embs_erased - query_emb, dim=1)
+            topk_indices = torch.topk(distances, tk, largest=False).indices
+
+            # Determine paired target index
+            if idx < len(text_list_1):
+                target_idx = len(text_list_1) + idx
+            else:
+                target_idx = idx - len(text_list_1)
+
+            target_idx_adjusted = target_idx - 1 if target_idx > idx else target_idx
+
+            if target_idx_adjusted in topk_indices:
+                correct_after += 1
+
+        ret_list_after.append(correct_after / len(query_indices))
+
+    return ret_list_before, ret_list_after
 
 def run_erasure_two_sources_no_label(text_list_1, text_list_2, erase_all=True, embedding='mini', top_k_retrieval=20, max_n_clusters=32): 
     
