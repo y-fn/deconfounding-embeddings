@@ -1109,3 +1109,132 @@ def run_erasure_two_sources_no_label(text_list_1, text_list_2, erase_all=True, e
     plt.tight_layout()
     plt.savefig('exact_pairs.png')
     plt.close()
+
+def remove_first_principal_component(embeddings):
+    """
+    Remove the first principal component from a set of embeddings.
+    
+    Parameters:
+    -----------
+    embeddings : numpy.ndarray
+        The embedding vectors, shape (n_samples, n_features)
+    
+    Returns:
+    --------
+    numpy.ndarray
+        Embeddings with the first principal component removed
+    """
+    # Center the embeddings (subtract mean)
+    embeddings_centered = embeddings - np.mean(embeddings, axis=0)
+    
+    # Fit PCA to find the principal components
+    pca = PCA(n_components=embeddings.shape[1])
+    pca.fit(embeddings_centered)
+    
+    # Get the first principal component
+    first_pc = pca.components_[0]
+    
+    # Project the centered embeddings onto the first principal component
+    pc_projection = np.outer(np.dot(embeddings_centered, first_pc), first_pc)
+    
+    # Subtract the projection to remove the component
+    embeddings_without_first_pc = embeddings_centered - pc_projection
+    
+    # Add the mean back to restore the original scale
+    return embeddings_without_first_pc + np.mean(embeddings, axis=0)
+
+def run_erasure_two_sources_partial_pairs_recall_removing_first_pc(
+    text_list_1,
+    text_list_2,
+    labels=None,
+    embedding='mini',
+    n_pairs=1024,
+    top_k_retrieval=[10, 1],
+    source_1='Source 1', 
+    source_2='Source 2', 
+):
+    # Load the sentence embedding model
+    model = load_embedding_model(embedding)
+
+    # Combine texts and label them
+    text_list = text_list_1 + text_list_2
+    if labels is None:
+        labels = [source_1] * len(text_list_1) + [source_2] * len(text_list_2)  
+
+    if embedding == 'nomic-v1.5': 
+        text_list = [f"search_document: {text}" for text in text_list]
+
+    # Compute embeddings for all texts
+    if embedding == 'jina':
+        embeddings = model.encode(text_list, show_progress_bar=True, task="text-matching")
+    elif embedding == 'nomic-v2':   
+        embeddings = model.encode(text_list, show_progress_bar=True, prompt_name="passage")
+    else:
+        embeddings = model.encode(text_list, show_progress_bar=True)
+
+    embeddings_erased = remove_first_principal_component(embeddings)
+
+    embeddings = torch.from_numpy(embeddings)
+    embeddings_erased = torch.from_numpy(embeddings_erased)
+
+    #########################
+    ### Get Top-K Ranking ###
+    #########################
+
+    ret_list_before, ret_list_after = [], []
+
+    # Define combined query indices (first n_pairs from each list)
+    query_indices = list(range(n_pairs)) + list(range(len(text_list_1), len(text_list_1) + n_pairs))
+
+    for tk in top_k_retrieval:
+
+        # Before erasure retrieval
+        correct_before = 0
+        for idx in query_indices:
+            query_emb = embeddings[idx]
+
+            # Create pool embeddings excluding the query itself
+            pool_embs = torch.cat([embeddings[:idx], embeddings[idx+1:]])
+
+            distances = torch.norm(pool_embs - query_emb, dim=1)
+            topk_indices = torch.topk(distances, tk, largest=False).indices
+
+            # Determine the paired target index
+            if idx < len(text_list_1):
+                target_idx = len(text_list_1) + idx  # paired from list 2
+            else:
+                target_idx = idx - len(text_list_1)  # paired from list 1
+
+            # Adjust target index due to query removal from embeddings
+            target_idx_adjusted = target_idx - 1 if target_idx > idx else target_idx
+
+            if target_idx_adjusted in topk_indices:
+                correct_before += 1
+
+        ret_list_before.append(correct_before / len(query_indices))
+
+        # After erasure retrieval
+        correct_after = 0
+        for idx in query_indices:
+            query_emb = embeddings_erased[idx]
+
+            # Create pool embeddings excluding the query itself
+            pool_embs_erased = torch.cat([embeddings_erased[:idx], embeddings_erased[idx+1:]])
+
+            distances = torch.norm(pool_embs_erased - query_emb, dim=1)
+            topk_indices = torch.topk(distances, tk, largest=False).indices
+
+            # Determine paired target index
+            if idx < len(text_list_1):
+                target_idx = len(text_list_1) + idx
+            else:
+                target_idx = idx - len(text_list_1)
+
+            target_idx_adjusted = target_idx - 1 if target_idx > idx else target_idx
+
+            if target_idx_adjusted in topk_indices:
+                correct_after += 1
+
+        ret_list_after.append(correct_after / len(query_indices))
+
+    return ret_list_before, ret_list_after
