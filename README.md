@@ -1,4 +1,4 @@
-# The Repository for the Paper The ***Medium is Not the Message: Deconfounding Text Embeddings via Linear Concept Erasure***
+# The Repository for the Paper ***The Medium is Not the Message: Deconfounding Text Embeddings via Linear Concept Erasure***
 
 The current pipeline generates and saves plots for the following visualizations:
 - K-means clusterings, both before and after LEACE erasure;
