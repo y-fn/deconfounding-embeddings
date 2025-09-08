@@ -1,4 +1,4 @@
-# The Repository for the EMNLP 2025 Paper ***The Medium is Not the Message: Deconfounding Document Embeddings via Linear Concept Erasure***
+## The Repository for the EMNLP 2025 Paper ***The Medium is Not the Message: Deconfounding Document Embeddings via Linear Concept Erasure***
 
 The current [pipeline](https://github.com/y-fn/deconfounding-text-embeddings/blob/main/style_erasure_pipeline.py) generates and saves plots for the following visualizations:
 - K-means clusterings, both before and after LEACE erasure;
