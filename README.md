@@ -25,9 +25,9 @@ In addition, we provide all [data](https://github.com/y-fn/deconfounding-embeddi
 If you find our work helpful, please consider citing us: 
 ```shell
 @article{fan2025medium,
-  title={The Medium Is Not the Message: Deconfounding Document Embeddings via Linear Concept Erasure},
-  author={Fan, Yu and Tian, Yang and Ravfogel, Shauli and Sachan, Mrinmaya and Ash, Elliott and Hoyle, Alexander},
-  journal={arXiv preprint arXiv:2507.01234},
-  year={2025}
+  title      =   {The Medium Is Not the Message: Deconfounding Document Embeddings via Linear Concept Erasure},
+  author     =   {Fan, Yu and Tian, Yang and Ravfogel, Shauli and Sachan, Mrinmaya and Ash, Elliott and Hoyle, Alexander},
+  journal    =   {arXiv preprint arXiv:2507.01234},
+  year       =   {2025}
 }
 ```
