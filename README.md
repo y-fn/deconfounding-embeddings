@@ -1,4 +1,4 @@
-## Repository for EMNLP 2025 Paper - [<ins>*The Medium is Not the Message: Deconfounding Document Embeddings via Linear Concept Erasure*</ins>](https://aclanthology.org/2025.emnlp-main.1634/)
+## Repository for EMNLP Paper - [<ins>*The Medium is Not the Message: Deconfounding Document Embeddings via Linear Concept Erasure*</ins>](https://aclanthology.org/2025.emnlp-main.1634/)
 
 [![ACL](https://img.shields.io/badge/ACL-Anthology-blue)](https://aclanthology.org/2025.emnlp-main.1634/)
 [![arXiv](https://img.shields.io/badge/arXiv-2507.01234-b31b1b)](https://arxiv.org/abs/2507.01234)
